@@ -1,0 +1,462 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>YT-Offline · Download Anything</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --bg: #07080d;
+    --glass: rgba(22, 25, 36, 0.55);
+    --glass-brd: rgba(255, 255, 255, 0.09);
+    --text: #f2f4fa;
+    --muted: #8b93a7;
+    --input-bg: rgba(8, 10, 16, 0.7);
+    --ok: #2ee6a6;
+    --radius: 22px;
+    /* default accent palette: Aurora */
+    --a1: #ff3d77; --a2: #7b5cff; --a3: #21d4fd;
+  }
+  /* ---- Light theme ---- */
+  [data-theme="light"] {
+    --bg: #e9edf6;
+    --glass: rgba(255, 255, 255, 0.62);
+    --glass-brd: rgba(20, 24, 48, 0.10);
+    --text: #161922;
+    --muted: #5a6178;
+    --input-bg: rgba(255, 255, 255, 0.78);
+  }
+  [data-theme="light"] .blob { opacity: .42; }
+  [data-theme="light"] .grain { opacity: .05; }
+  /* ---- Accent palettes ---- */
+  [data-accent="ocean"]  { --a1: #2e7bff; --a2: #21d4fd; --a3: #2ee6a6; }
+  [data-accent="ember"]  { --a1: #ff3d77; --a2: #ff7a45; --a3: #ffb020; }
+  [data-accent="forest"] { --a1: #2ee6a6; --a2: #21d4fd; --a3: #34d399; --ok: #2ee6a6; }
+  [data-accent="grape"]  { --a1: #c026d3; --a2: #7b5cff; --a3: #4f46e5; }
+  * { transition: background-color .35s ease, color .35s ease, border-color .35s ease; }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    margin: 0;
+    font-family: "Inter", -apple-system, BlinkMacSystemFont, sans-serif;
+    color: var(--text);
+    background: var(--bg);
+    min-height: 100vh;
+    display: flex; flex-direction: column; align-items: center;
+    overflow-x: hidden;
+  }
+
+  /* ---------- Animated aurora background ---------- */
+  .aurora { position: fixed; inset: 0; z-index: -2; overflow: hidden; }
+  .blob {
+    position: absolute; border-radius: 50%; filter: blur(90px); opacity: .55;
+    will-change: transform;
+  }
+  .blob.b1 { width: 46vw; height: 46vw; background: var(--a1); top: -12vw; left: -8vw; animation: float1 18s ease-in-out infinite; }
+  .blob.b2 { width: 42vw; height: 42vw; background: var(--a2); top: -6vw; right: -10vw; animation: float2 22s ease-in-out infinite; }
+  .blob.b3 { width: 38vw; height: 38vw; background: var(--a3); bottom: -14vw; left: 30vw; opacity: .4; animation: float3 26s ease-in-out infinite; }
+  @keyframes float1 { 50% { transform: translate(8vw, 10vh) scale(1.15); } }
+  @keyframes float2 { 50% { transform: translate(-6vw, 12vh) scale(1.1); } }
+  @keyframes float3 { 50% { transform: translate(4vw, -10vh) scale(1.2); } }
+  /* subtle grain overlay */
+  .grain { position: fixed; inset: 0; z-index: -1; opacity: .035; pointer-events: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E"); }
+
+  /* ---------- Header ---------- */
+  header { text-align: center; margin: 9vh 20px 32px; animation: rise .7s cubic-bezier(.2,.7,.3,1) both; }
+  .badge {
+    display: inline-flex; align-items: center; gap: 7px; font-size: .74rem; font-weight: 600;
+    letter-spacing: .08em; text-transform: uppercase; color: var(--muted);
+    border: 1px solid var(--glass-brd); background: rgba(255,255,255,.04);
+    padding: 6px 13px; border-radius: 99px; margin-bottom: 20px; backdrop-filter: blur(8px);
+  }
+  .badge .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--ok); box-shadow: 0 0 10px var(--ok); animation: pulse 2s infinite; }
+  @keyframes pulse { 50% { opacity: .4; } }
+  header h1 {
+    font-family: "Space Grotesk", sans-serif; font-weight: 700;
+    font-size: clamp(2.4rem, 6vw, 3.6rem); margin: 0; line-height: 1.04; letter-spacing: -.02em;
+  }
+  header h1 .grad {
+    background: linear-gradient(110deg, var(--a3), var(--a2) 40%, var(--a1) 80%);
+    background-size: 200% auto; -webkit-background-clip: text; background-clip: text; color: transparent;
+    animation: shimmer 6s linear infinite;
+  }
+  @keyframes shimmer { to { background-position: 200% center; } }
+  header p { color: var(--muted); margin: 16px auto 0; font-size: 1.02rem; max-width: 440px; }
+
+  /* ---------- Card ---------- */
+  .card {
+    position: relative; width: min(720px, 92vw);
+    background: var(--glass); border: 1px solid var(--glass-brd);
+    border-radius: var(--radius); padding: 26px;
+    backdrop-filter: blur(22px) saturate(140%); -webkit-backdrop-filter: blur(22px) saturate(140%);
+    box-shadow: 0 30px 80px rgba(0,0,0,.55), inset 0 1px 0 rgba(255,255,255,.06);
+    animation: rise .7s .1s cubic-bezier(.2,.7,.3,1) both;
+  }
+  /* glow ring on top edge */
+  .card::before {
+    content: ""; position: absolute; inset: -1px; border-radius: var(--radius); padding: 1px;
+    background: linear-gradient(120deg, rgba(33,212,253,.5), rgba(123,92,255,.25) 50%, rgba(255,61,119,.5));
+    -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor; mask-composite: exclude; opacity: .55; pointer-events: none;
+  }
+
+  .inputrow { display: flex; gap: 12px; }
+  .field { position: relative; flex: 1; }
+  .field svg { position: absolute; left: 16px; top: 50%; transform: translateY(-50%); color: var(--muted); }
+  input[type=text] {
+    width: 100%; background: var(--input-bg); border: 1px solid var(--glass-brd); color: var(--text);
+    padding: 16px 16px 16px 46px; border-radius: 14px; font-size: 1rem; font-family: inherit;
+    outline: none; transition: border-color .2s, box-shadow .2s;
+  }
+  input[type=text]::placeholder { color: #59607a; }
+  input[type=text]:focus { border-color: rgba(123,92,255,.7); box-shadow: 0 0 0 4px rgba(123,92,255,.16); }
+
+  button {
+    position: relative; overflow: hidden; border: 0; border-radius: 14px;
+    padding: 16px 24px; font-size: 1rem; font-weight: 600; font-family: inherit; cursor: pointer;
+    color: #fff; background: linear-gradient(110deg, var(--a2), var(--a1));
+    box-shadow: 0 10px 30px rgba(255,61,119,.28); transition: transform .1s ease, box-shadow .2s, opacity .2s;
+  }
+  button:hover { transform: translateY(-2px); box-shadow: 0 14px 38px rgba(255,61,119,.4); }
+  button:active { transform: translateY(0); }
+  button:disabled { opacity: .55; cursor: not-allowed; transform: none; box-shadow: none; }
+  /* shine sweep */
+  button::after {
+    content: ""; position: absolute; top: 0; left: -120%; width: 60%; height: 100%;
+    background: linear-gradient(100deg, transparent, rgba(255,255,255,.35), transparent);
+    transform: skewX(-20deg); transition: left .6s;
+  }
+  button:hover::after { left: 140%; }
+
+  .hint { color: var(--muted); font-size: .8rem; margin: 14px 4px 0; display: flex; align-items: center; gap: 6px; }
+
+  /* ---------- Result ---------- */
+  .result { margin-top: 24px; opacity: 0; max-height: 0; overflow: hidden; transition: opacity .4s, max-height .5s; }
+  .result.show { opacity: 1; max-height: 900px; }
+  .preview { display: flex; gap: 18px; }
+  .thumb-wrap { position: relative; width: 190px; flex-shrink: 0; border-radius: 14px; overflow: hidden; }
+  .thumb-wrap img { width: 100%; height: 107px; object-fit: cover; display: block; background: #000; }
+  .thumb-wrap::after { content: ""; position: absolute; inset: 0; box-shadow: inset 0 0 0 1px rgba(255,255,255,.08); border-radius: 14px; }
+  .meta { flex: 1; min-width: 0; }
+  .meta h3 { margin: 2px 0 6px; font-size: 1.12rem; font-family: "Space Grotesk", sans-serif; line-height: 1.3;
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .meta .sub { color: var(--muted); font-size: .86rem; }
+
+  .seclabel { font-size: .72rem; text-transform: uppercase; letter-spacing: .1em; color: var(--muted); margin: 20px 0 10px; }
+  .chips { display: flex; flex-wrap: wrap; gap: 9px; }
+  .chip {
+    border: 1px solid var(--glass-brd); background: rgba(255,255,255,.03); color: var(--text);
+    padding: 9px 15px; border-radius: 11px; font-size: .88rem; font-weight: 500; cursor: pointer;
+    transition: all .15s; user-select: none;
+  }
+  .chip:hover { border-color: rgba(123,92,255,.5); background: rgba(123,92,255,.08); }
+  .chip.active {
+    border-color: transparent; color: #fff;
+    background: linear-gradient(110deg, var(--a2), var(--a1));
+    box-shadow: 0 6px 18px rgba(123,92,255,.35);
+  }
+  .chip .tag { font-size: .68rem; opacity: .7; margin-left: 5px; }
+
+  .dlbtn { width: 100%; margin-top: 22px; padding: 17px; font-size: 1.04rem; }
+
+  /* ---------- Progress ---------- */
+  .progress { margin-top: 20px; display: none; animation: rise .4s both; }
+  .progress.show { display: block; }
+  .bar { position: relative; height: 12px; background: var(--input-bg); border-radius: 99px; overflow: hidden; border: 1px solid var(--glass-brd); }
+  .bar > i {
+    display: block; height: 100%; width: 0%; border-radius: 99px;
+    background: linear-gradient(90deg, var(--a3), var(--a2), var(--a1)); background-size: 200% auto;
+    transition: width .35s ease; animation: flow 2s linear infinite; box-shadow: 0 0 18px rgba(123,92,255,.5);
+  }
+  @keyframes flow { to { background-position: 200% center; } }
+  /* moving sheen while active */
+  .bar.active::after {
+    content: ""; position: absolute; inset: 0; border-radius: 99px;
+    background: linear-gradient(100deg, transparent, rgba(255,255,255,.25), transparent);
+    background-size: 40% 100%; background-repeat: no-repeat; animation: sweep 1.3s linear infinite;
+  }
+  @keyframes sweep { from { background-position: -40% 0; } to { background-position: 140% 0; } }
+  .pmeta { display: flex; justify-content: space-between; color: var(--muted); font-size: .84rem; margin-top: 11px; font-variant-numeric: tabular-nums; }
+  .pmeta b { color: var(--text); font-weight: 600; }
+
+  /* ---------- Done / Error ---------- */
+  .done-link { display: none; margin-top: 18px; animation: rise .4s both; }
+  .done-link.show { display: block; }
+  .done-link a {
+    display: flex; align-items: center; justify-content: center; gap: 10px;
+    background: linear-gradient(110deg, rgba(46,230,166,.16), rgba(46,230,166,.06));
+    border: 1px solid rgba(46,230,166,.4); color: var(--ok);
+    padding: 15px; border-radius: 13px; font-weight: 600; text-decoration: none; transition: background .2s;
+  }
+  .done-link a:hover { background: rgba(46,230,166,.22); }
+  .error { color: #ff7a96; font-size: .9rem; margin-top: 16px; display: none; padding: 13px 15px;
+    border: 1px solid rgba(255,61,119,.35); background: rgba(255,61,119,.08); border-radius: 12px; }
+  .error.show { display: block; }
+
+  .spinner { display: inline-block; width: 15px; height: 15px; border: 2px solid rgba(255,255,255,.35); border-top-color: #fff; border-radius: 50%; animation: spin .7s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  @keyframes rise { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: translateY(0); } }
+
+  footer { color: #ffffff; font-size: .8rem; margin: 36px 20px 44px; text-align: center; max-width: 540px; line-height: 1.65; }
+  [data-theme="light"] footer { color: #161922; }
+  footer a { color: var(--a3); }
+
+  /* ---------- Theme toolbar ---------- */
+  .toolbar {
+    position: fixed; top: 18px; right: 18px; z-index: 20; display: flex; align-items: center; gap: 12px;
+    background: var(--glass); border: 1px solid var(--glass-brd); padding: 7px 11px; border-radius: 99px;
+    backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
+    box-shadow: 0 10px 30px rgba(0,0,0,.3);
+  }
+  .ttoggle {
+    background: transparent; box-shadow: none; padding: 3px 5px; font-size: 1.15rem; line-height: 1;
+    border-radius: 50%; transform: none;
+  }
+  .ttoggle:hover { transform: scale(1.12); box-shadow: none; }
+  .ttoggle::after { display: none; }
+  .divider { width: 1px; height: 20px; background: var(--glass-brd); }
+  .swatches { display: flex; gap: 8px; }
+  .swatches button {
+    width: 22px; height: 22px; min-width: 22px; border-radius: 50%; padding: 0; cursor: pointer;
+    border: 2px solid transparent; box-shadow: none;
+    background: linear-gradient(135deg, var(--s1), var(--s2));
+  }
+  .swatches button:hover { transform: scale(1.15); box-shadow: 0 0 12px var(--s1); }
+  .swatches button::after { display: none; }
+  .swatches button.active { box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px var(--text); }
+  @media (max-width: 560px) { .toolbar { top: 12px; right: 12px; padding: 6px 9px; gap: 9px; } }
+
+  @media (max-width: 560px) {
+    .preview { flex-direction: column; }
+    .thumb-wrap { width: 100%; }
+    .thumb-wrap img { height: 180px; }
+    .inputrow { flex-direction: column; }
+  }
+</style>
+</head>
+<body>
+  <div class="aurora"><div class="blob b1"></div><div class="blob b2"></div><div class="blob b3"></div></div>
+  <div class="grain"></div>
+
+  <div class="toolbar">
+    <button class="ttoggle" id="themeToggle" title="Toggle light / dark">🌙</button>
+    <div class="divider"></div>
+    <div class="swatches" id="swatches">
+      <button data-accent="aurora" title="Aurora" style="--s1:#ff3d77;--s2:#21d4fd"></button>
+      <button data-accent="ocean"  title="Ocean"  style="--s1:#2e7bff;--s2:#2ee6a6"></button>
+      <button data-accent="ember"  title="Ember"  style="--s1:#ff3d77;--s2:#ffb020"></button>
+      <button data-accent="forest" title="Forest" style="--s1:#2ee6a6;--s2:#21d4fd"></button>
+      <button data-accent="grape"  title="Grape"  style="--s1:#c026d3;--s2:#4f46e5"></button>
+    </div>
+  </div>
+
+  <header>
+    <div class="badge"><span class="dot"></span> Runs 100% on your machine</div>
+    <h1>Download <span class="grad">anything</span>.<br />Watch it <span class="grad">offline</span>.</h1>
+    <p>Paste a link, pick a quality, and save it to your device. Powered locally by yt-dlp&nbsp;+&nbsp;ffmpeg.</p>
+  </header>
+
+  <div class="card">
+    <div class="inputrow">
+      <div class="field">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.5 1.5"/><path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.5-1.5"/></svg>
+        <input id="url" type="text" placeholder="https://…" autocomplete="off" spellcheck="false" />
+      </div>
+      <button id="fetch">Fetch</button>
+    </div>
+    <p class="hint">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+      For content you own or have the right to download.
+    </p>
+
+    <div class="result" id="result">
+      <div class="preview">
+        <div class="thumb-wrap"><img id="thumb" alt="" /></div>
+        <div class="meta">
+          <h3 id="title"></h3>
+          <div class="sub" id="sub"></div>
+        </div>
+      </div>
+
+      <div class="seclabel">Choose format &amp; quality</div>
+      <div class="chips" id="chips"></div>
+
+      <button id="download" class="dlbtn">Download</button>
+
+      <div class="progress" id="progress">
+        <div class="bar" id="bar"><i id="barfill"></i></div>
+        <div class="pmeta">
+          <span id="pstatus">Starting…</span>
+          <span id="pspeed"></span>
+        </div>
+      </div>
+      <div class="done-link" id="donelink"></div>
+    </div>
+
+    <div class="error" id="error"></div>
+  </div>
+
+  <footer>
+    Everything runs on your own computer. Nothing is uploaded anywhere. You are responsible for what you
+    download; copyrighted material may be protected, and YouTube's Terms of Service prohibit downloading from it.
+  </footer>
+
+<script>
+  const $ = (id) => document.getElementById(id);
+  let currentUrl = "";
+  let selectedFormat = null;
+
+  async function fetchInfo() {
+    const url = $("url").value.trim();
+    if (!url) return;
+    currentUrl = url;
+    setError("");
+    $("result").classList.remove("show");
+    $("fetch").disabled = true;
+    $("fetch").innerHTML = '<span class="spinner"></span>';
+    try {
+      const r = await fetch("/api/info", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url }),
+      });
+      const data = await r.json();
+      if (!r.ok) throw new Error(data.error || "Failed to fetch info");
+      renderInfo(data);
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      $("fetch").disabled = false;
+      $("fetch").textContent = "Fetch";
+    }
+  }
+
+  function renderInfo(data) {
+    $("thumb").src = data.thumbnail || "";
+    $("title").textContent = data.title || "Untitled";
+    const mins = data.duration ? `${Math.floor(data.duration / 60)}:${String(data.duration % 60).padStart(2, "0")}` : "";
+    $("sub").textContent = [data.uploader, mins].filter(Boolean).join("  ·  ");
+
+    const chips = $("chips");
+    chips.innerHTML = "";
+    selectedFormat = null;
+    data.formats.forEach((f, i) => {
+      const el = document.createElement("div");
+      el.className = "chip" + (i === 0 ? " active" : "");
+      el.dataset.id = f.id;
+      const isAudio = f.kind === "audio";
+      el.innerHTML = `${f.label.replace(/ (MP4|MP3.*)$/, "")}<span class="tag">${isAudio ? "MP3" : "MP4"}</span>`;
+      el.onclick = () => {
+        [...chips.children].forEach((c) => c.classList.remove("active"));
+        el.classList.add("active");
+        selectedFormat = f.id;
+      };
+      chips.appendChild(el);
+      if (i === 0) selectedFormat = f.id;
+    });
+
+    $("result").classList.add("show");
+    $("progress").classList.remove("show");
+    $("donelink").classList.remove("show");
+  }
+
+  async function startDownload() {
+    if (!selectedFormat) return;
+    setError("");
+    $("download").disabled = true;
+    $("donelink").classList.remove("show");
+    $("progress").classList.add("show");
+    $("bar").classList.add("active");
+    setBar(0, "Starting…", "");
+    try {
+      const r = await fetch("/api/download", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url: currentUrl, formatId: selectedFormat }),
+      });
+      const { jobId, error } = await r.json();
+      if (!r.ok) throw new Error(error || "Could not start download");
+      trackProgress(jobId);
+    } catch (e) {
+      setError(e.message);
+      $("download").disabled = false;
+      $("bar").classList.remove("active");
+    }
+  }
+
+  function trackProgress(jobId) {
+    const es = new EventSource(`/api/progress/${jobId}`);
+    es.onmessage = (ev) => {
+      const j = JSON.parse(ev.data);
+      const label = j.status === "processing" ? "Processing: merging &amp; converting…"
+        : j.status === "done" ? "Complete"
+        : `Downloading… <b>${(j.percent || 0).toFixed(1)}%</b>`;
+      $("pstatus").innerHTML = label;
+      $("pspeed").innerHTML = j.speed ? `<b>${j.speed}</b> · ETA ${j.eta || "--"}` : "";
+      $("barfill").style.width = Math.min(j.percent || (j.status === "processing" ? 99 : 0), 100) + "%";
+
+      if (j.status === "done") {
+        es.close();
+        $("bar").classList.remove("active");
+        const link = $("donelink");
+        link.innerHTML = `<a href="/api/file/${jobId}">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/></svg>
+          Save “${j.title}” to your device</a>`;
+        link.classList.add("show");
+        $("download").disabled = false;
+      }
+      if (j.status === "error") {
+        es.close();
+        $("bar").classList.remove("active");
+        setError(j.error || "Download failed");
+        $("progress").classList.remove("show");
+        $("download").disabled = false;
+      }
+    };
+    es.onerror = () => es.close();
+  }
+
+  function setBar(pct, status, speed) {
+    $("barfill").style.width = Math.min(pct, 100) + "%";
+    $("pstatus").innerHTML = status;
+    $("pspeed").innerHTML = speed;
+  }
+  function setError(msg) {
+    const e = $("error");
+    e.textContent = msg;
+    e.classList.toggle("show", !!msg);
+  }
+
+  $("fetch").addEventListener("click", fetchInfo);
+  $("url").addEventListener("keydown", (e) => e.key === "Enter" && fetchInfo());
+  $("download").addEventListener("click", startDownload);
+
+  /* ---------- Theme + accent switching (persisted) ---------- */
+  const root = document.documentElement;
+
+  function applyTheme(t) {
+    root.setAttribute("data-theme", t);
+    $("themeToggle").textContent = t === "light" ? "☀️" : "🌙";
+    localStorage.setItem("yt_theme", t);
+  }
+  function applyAccent(a) {
+    root.setAttribute("data-accent", a);
+    [...$("swatches").children].forEach((b) => b.classList.toggle("active", b.dataset.accent === a));
+    localStorage.setItem("yt_accent", a);
+  }
+
+  $("themeToggle").addEventListener("click", () =>
+    applyTheme(root.getAttribute("data-theme") === "light" ? "dark" : "light")
+  );
+  [...$("swatches").children].forEach((b) =>
+    b.addEventListener("click", () => applyAccent(b.dataset.accent))
+  );
+
+  // Restore saved preferences (default: dark + aurora).
+  applyTheme(localStorage.getItem("yt_theme") || "dark");
+  applyAccent(localStorage.getItem("yt_accent") || "aurora");
+</script>
+</body>
+</html>

@@ -1,0 +1,13 @@
+{
+  "name": "yt-offline",
+  "version": "1.0.0",
+  "description": "Local offline video downloader (yt-dlp + ffmpeg web UI)",
+  "type": "module",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2"
+  }
+}
